@@ -3,7 +3,31 @@ import sys
 import time
 import matplotlib.pyplot as plt
 
-def opacity(T, rho):
+### Constants ###
+#-------------------------------------------------------------#
+# Physical constants
+_M_U = 1.6605e-24		# Units of [g]						CGS
+_C = 3e10				# Units of [cm s^-1]				CGS
+_K = 1.38e-16			# Units of [erg K^-1]				CGS
+_SIGMA = 5.67e-5		# Units of [erg cm^-2 s^-1 K^-4]	CGS
+_G = 6.67e-8			# Units of [cm^3 g^-1 s^-2]			CGS
+_A = 4 * _SIGMA / _C	#
+
+# Abundancy of different elements
+X = 0.7				# Hydrogen (ionised)
+Y = 0.29			# Helium 4 (ionised)
+Y_3 = 1e-10			# Helium 3 (ionised)
+Z = 0.01			# Heavier elements than the above (ionised)
+Z_7Li = 1e-12		# Lithium 7 (part of Z)
+Z_7Be = 1e-12		# Beryllium 7 (part of Z)
+
+# Average molecular weight
+_MU = 1./(2*X + 3./4 * Y + 1.*Z/2)
+#-------------------------------------------------------------#
+
+
+
+def opacity(T,rho):
 	"""
 	Reads opacities from a file. Finds the opacity value
 	that most closely resembles the present values for
@@ -51,18 +75,9 @@ def energyGeneration(T, rho):
 
 	ergs = 1.602e-6			# Conversion from MeV to ergs (CGS)
 	NA_inv = 1./6.022e23	# Avogadro's constant inverse
-
-	mu = 1.6605e-24		# Units of [g]		CGS
-
-	# Abundancy of different elements
-	X = 0.7				# Hydrogen (ionised)
-	Y = 0.29			# Helium 4 (ionised)
-	Y_3 = 1e-10			# Helium 3 (ionised)
-	Z = 0.01			# Heavier elements than the above (ionised)
-	Z_7Li = 1e-13		# Lithium 7 (part of Z)
-	Z_7Be = 1e-13		# Beryllium 7 (part of Z)
 	
 	### Energy values (Q) ###
+
 	# Energy values of nuclear reactions in PP I [MeV]
 	Q_pp = (1.177 + 5.949) * ergs ; Q_3He3He = 12.86 * ergs
 
@@ -73,12 +88,12 @@ def energyGeneration(T, rho):
 	Q_p7Be= (0.137 + 8.367 + 2.995) * ergs
 
 	### Number densities (n) ###
-	n_p = X * rho / mu					# Hydrogen
-	n_3He = Y_3 * rho / (3 * mu)		# Helium 3
-	n_4He = Y * rho / (4 * mu)			# Helium 4
-	n_7Be = Z_7Be * rho / (7 * mu)		# Beryllium 7
+	n_p = X * rho / _M_U				# Hydrogen
+	n_3He = Y_3 * rho / (3 * _M_U)		# Helium 3
+	n_4He = Y * rho / (4 * _M_U)		# Helium 4
+	n_7Be = Z_7Be * rho / (7 * _M_U)	# Beryllium 7
 	n_e = n_p + 2 * n_4He				# Electron
-	n_7Li = Z_7Li * rho / (7 * mu)		# Lithium 7
+	n_7Li = Z_7Li * rho / (7 * _M_U)	# Lithium 7
 
 	### Reaction rates (lambda) ### Units of reactions per second per cubic cm. [cm^3 s^-1]
 	T9 = T / (1e9)
@@ -116,83 +131,93 @@ def energyGeneration(T, rho):
 	r_p7Be = l_p7Be * (n_p * n_7Be) / rho
 
 	### Energy generation per unit mass from PP I, II and III ###
+	PP1 = (Q_pp * r_pp) + (Q_3He3He * r_3He3He)
+	PP2 = (Q_pp * r_pp) + (Q_3He4He * r_3He4He) + (Q_e7Be * r_e7Be) + (Q_p7Li * r_p7Li)
+	PP3 = (Q_pp * r_pp) + (Q_3He4He * r_3He4He) + (Q_p7Be * r_p7Be)
+
 	epsilon = (Q_pp * r_pp) + (Q_3He3He * r_3He3He) + (Q_3He4He * r_3He4He) + (Q_e7Be *
 			r_e7Be) + (Q_p7Li * r_p7Li) + (Q_p7Be * r_p7Be)
 	
-	return epsilon
+	return epsilon, PP1, PP2, PP3
 
-def getRho(T, P):
+def total_flux(L,r):
+	"""
+	Calculates the total flux, from convective and radiative energy transfer.
+	"""
+	F = L/(4 * np.pi * r*r)
+	return F
+
+def convective_flux(F,F_R):
+	"""
+	Calcultes the flux from convective energy transfer.
+	"""
+	F_C = F - F_R
+	return F_C
+
+def radiative_flux(m,r,T,P,kappa,nabla):
+	"""
+	Calculates the flux from radiative energy transfer.
+	"""
+	F_R = 4 * _A * _C * _G * T*T*T*T * m / (3 * kappa * P * r*r) * nabla
+	return F_R
+	
+def nabla_radiation(T,P,L,m,kappa):
+	"""
+	Calculates the temperature gradient considering
+	radiative energy transfer only.
+	"""
+	return 3 * kappa * L * P / (64 * np.pi * _SIGMA * _G * m * T*T*T*T)
+
+
+def getRho(T,P):
 	"""
 	Calculates the density at present location.
 	Returns density in units of [g cm^-3].
 	"""
-	### Abundancy ###
-	X = 0.7
-	Y = 0.29
-	Z = 0.01
-
-	### Constants ###
-
-	# Stefan-Boltzmann constant
-	sigma = 5.67e-5	# Units of [erg cm^-2 s^-1 K^-4]	CGS
-
-	# Boltzmann constant
-	k = 1.38e-16			# Units of [erg K^-1]		CGS
-
-	# Atonmic mass unit
-	m_u = 1.6605e-24		# Units of [g]				CGS
-
-	# Speed of light
-	c = 3e10				# Units of [cm s^-1]		CGS
-
 	# Radiation constant
-	a = 4 * sigma / c
+#	a = 4 * _SIGMA/ _C
 
-	# Average molecular weight
-	mu = 1./(2*X + 3./4 * Y + 9.*Z/14)
-
-	rho = mu * m_u / (k * T) * (P - a/3 * T*T*T*T)
+	rho = _MU * _M_U / (_K * T) * (P - _A/3. * T*T*T*T)
 	return rho
 
-def drdm(r, rho):
+def drdm(r,rho):
 	"""
 	Calculates the right-hand side of dr/dm.
 	"""
 	return 1./(4 * np.pi * r * r * rho)
 
-def dPdm(r, m):
+def dPdm(r,m):
 	"""
 	Calculates the right-hand side of dP/dm.
 	"""
-	G = 6.67e-8		# Units of [cm^3 g^-1 s^-2]		CGS
-	return - G * m / (4 * np.pi * r * r * r * r)
+	return - _G * m / (4 * np.pi * r*r*r*r)
 
-def dLdm(T, rho):
+def dLdm(T,rho):
 	"""
 	Calculates the right-hand side of dL/dm.
 	"""
-	return energyGeneration(T, rho)
+	epsilon = energyGeneration(T,rho)[0]
+	return epsilon
+#	return energyGeneration(T,rho) Doesn't work when returning several objects
 
-def dTdm(T, L, r, kappa):
+def dTdm(T,L,r,kappa):
 	"""
 	Calculates the right-hand side of dT/dm.
 	"""
-	sigma = 5.67e-5			# Units of [erg cm^-2 s^-1 K^-4]	CGS
-
-	return -3 * kappa * L / (256 * np.pi*np.pi * sigma * r*r*r*r * T*T*T)
+	return -3 * kappa * L / (256 * np.pi*np.pi * _SIGMA * r*r*r*r * T*T*T)
 
 
 def integration():
 	"""
-	Function that integrates the equation governing
-	the internal structure of the radiative core
-	of the Sun.
+	Function that integrates the equations governing
+	the structure of the Sun, including radiative and
+	convective energy transfer.
 	"""
 	
-	L0 = 3.839e33			# Units of [erg s^-1]		CGS
-	R0 = 0.5 * 6.96e10		# Units of [cm]				CGS
-	M0 = 0.7 * 1.99e33		# Units of [g]				CGS
-	T0 = 1e5				# Units of [K]				SI, CGS
+	L0 = 3.84e33			# Units of [erg s^-1]		CGS
+	R0 = 6.96e10			# Units of [cm]				CGS
+	M0 = 1.99e33			# Units of [g]				CGS
+	T0 = 5770				# Units of [K]				SI, CGS
 	P0 = 1e12				# Units of [Ba]				CGS
 	rho0 = getRho(T0, P0)	# Units of [g cm^-3]		CGS
 
@@ -203,14 +228,26 @@ def integration():
 	L = L0
 	T = T0
 	kappa = opacity(T,rho)
-	epsilon = energyGeneration(T, rho)
+	epsilon, PP1, PP2, PP3 = energyGeneration(T, rho)
 
 	dm = -1e15
+
+	# Assuming we only have radiative flux in the beginning, until we have convection.
+	F = total_flux(L,r)
+	F_R = total_flux(L,r)
+	F_C = 0.0
+
+	outfile = open('data.txt','w')
+	outfile.write('%3.2e %3.2e %4.0f %3.2e %3.2e %3.2e\n' % \
+			(M0, R0, T0, L0, P0, rho0))
+	outfile.write('%12.4f %12.4f %12.4f %12.4f %12.4f %12.4f %12.4f %12.4f ' % \
+		(dm, m/M0, r/R0, T/T0, L/L0, P/P0, rho/rho0, epsilon))
+	outfile.write('%12.4f %12.4f\n' % \
+			(F_R/F, F_C/F))
 
 	start = time.time()
 	i = 0
 	while m > 0:
-#	for i in range(n-1):
 		# Progress counter
 		percent = 100 - (m / float(M0)) * 100
 		sys.stdout.write('Progress: %4.2f %s\r' % (percent, '%'))
@@ -219,14 +256,83 @@ def integration():
 		dr = drdm(r,rho) * dm
 		dP = dPdm(r,m) * dm
 		dL = dLdm(T,rho) * dm
-		dT = dTdm(T,L,r,kappa)
+		dT = dTdm(T,L,r,kappa) * dm
 
+		T_new = T + dT	# Superflous?
+
+		F = total_flux(L,r)
+		F_R = total_flux(L,r)
+		F_C = 0.0
+
+		# Specific heat capacity
+		c_p = (5./2) * _K / (_MU * _M_U)	# Units of [erg K^-1 g^-1]
+
+		delta = 1.0		# 1 for ideal gas (maybe revisit later for a general expression)
+
+		# Temperature gradient in adiabatic process
+		nabla_ad = P * delta / (T * rho * c_p)
+#		print "nabla_ad: ",nabla_ad
+
+		# Temperature gradient when only considering radiation
+		nabla_rad = nabla_radiation(T,P,L,m,kappa)
+#		print "nabla_rad: ", nabla_rad
+
+		# Checks the instability criterion and calculates dT based on convection if true.
+		if nabla_rad > nabla_ad:
+
+			# Parameter between 0.5 and 2. Choose 1 for simplicity
+			alpha = 1.0
+
+			# Current acceleration of gravity
+			g = _G * m / (r*r)
+
+			# Pressure scale height
+			H_p = P / (g * rho)
+#			print "H_p: ",H_p
+
+			# Internal energy
+			U = (64 * _SIGMA * T*T*T) / ( 3 * kappa * rho*rho * c_p) * np.sqrt(H_p / (g *
+				delta))
+#			print "U: ",U
+			
+			# Mixing length
+			l = alpha * H_p
+#			print "l: ",l
+			
+			# Parameters for solving 2nd and 3rd order polynomials
+			R = U / (l*l)
+#			print "R: ",R
+			K = 4 * R
+			nabla_diff = nabla_rad - nabla_ad
+#			print "nabla_rad - nabla_ad: ", (nabla_rad - nabla_ad)
+#			R2 = R*R
+			
+#			X = ((np.sqrt((27./R2)**2*nabla_diff**2+1836./R2*nabla_diff+6480)\
+					+34+27./R2*nabla_diff)/2.)**(1./3)
+
+#			xi = R/3*(X-11./X-1)
+
+			coeff = [1, R, R*K, -R*nabla_diff]
+			xi_roots = np.roots(coeff)
+			for root in xi_roots:
+				if np.imag(root) == min(abs(np.imag(xi_roots))):
+					xi = np.real(root)
+					break
+#			print "xi: ",xi
+			
+			nabla = xi*xi+ K*xi+ nabla_ad
+
+			dT = T/P * nabla * dP
+
+			F_R = radiative_flux(m,r,T,P,kappa,nabla)
+			F_C = convective_flux(F,F_R)
+				
 		r_new = r + dr
 		P_new = P + dP
 		L_new = L + dL
 		T_new = T + dT
 		rho_new = getRho(T_new,P_new)
-		epsilon_new = energyGeneration(T_new, rho_new)
+		epsilon_new, PP1_new, PP2_new, PP3_new= energyGeneration(T_new, rho_new)
 		kappa_new = opacity(T_new, rho_new)
 		m += dm
 
@@ -241,10 +347,24 @@ def integration():
 			print "Temperature:", T_new/T0
 			break
 
+#		if dr/r < 0.2 and dT/T < 0.1 and dL/L < 0.1 and dP/P < 0.1:
+#			dm_new = - min([abs(L/dLdm(T,rho)), abs(r/drdm(r,rho)),
+#			abs(T/dTdm(T,L,r,opacity(T,rho))), abs(P/dPdm(r,m))])
+#			if dm_new < 1.1*dm:
+#				dm = dm_new
+#			else:
 
-		dm = -0.9 * min([abs(L/dLdm(T,rho)), abs(r/drdm(r,rho)),
-				abs(T/dTdm(T, L, r, opacity(T, rho))),
-				abs(P/dPdm(r,m))])
+
+		dm_max = - min([0.4*abs(L/dLdm(T,rho)), 0.2*abs(r/drdm(r,rho)),
+				0.4*abs(T/(dT/dm)),
+				0.4*abs(P/dPdm(r,m))])
+		dm_min = - min([0.1*abs(L/dLdm(T,rho)), 0.1*abs(r/drdm(r,rho)),
+			0.1*abs(T/(dT/dm)), 0.1*abs(P/dPdm(r,m))])
+
+		if abs(dm) > abs(dm_max):
+			dm *= 0.9
+		if abs(dm) < abs(dm_min):
+			dm *= 1.1
 
 		r = r_new
 		P = P_new
@@ -253,9 +373,23 @@ def integration():
 		rho = rho_new
 		kappa = kappa_new
 		epsilon = epsilon_new
-				
-		print dm 
+		PP1 = PP1_new
+		PP2 = PP2_new
+		PP3 = PP3_new
 
+		outfile.write('%12.4f %12.4f %12.4f %12.4f %12.4f %12.4f %12.4f %12.4f ' % \
+				(dm, m/M0, r/R0, T/T0, L/L0, P/P0, rho/rho0, epsilon))
+		outfile.write('%12.4f %12.4f\n' % \
+				(F_R/F, F_C/F))
+
+		print "r: ",r/R0
+#		print "P: ",P
+#		print "L: ",L
+#		print "T: ",T
+#		print "rho: ",rho
+#		print "epsilon: ",epsilon
+		print "dm: ",dm 
+		print "m: ",m/M0
 
 			
 	# Writing elapsed time upon completion
