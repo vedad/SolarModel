@@ -180,9 +180,6 @@ def getRho(T,P):
 	Calculates the density at present location.
 	Returns density in units of [g cm^-3].
 	"""
-	# Radiation constant
-#	a = 4 * _SIGMA/ _C
-
 	rho = _MU * _M_U / (_K * T) * (P - _A/3. * T*T*T*T)
 	return rho
 
@@ -204,7 +201,6 @@ def dLdm(T,rho):
 	"""
 	epsilon = energyGeneration(T,rho)[0]
 	return epsilon
-#	return energyGeneration(T,rho) Doesn't work when returning several objects
 
 def dTdm(T,L,r,kappa):
 	"""
@@ -222,11 +218,10 @@ def integration():
 	
 	L0 = 3.84e33				# Units of [erg s^-1]		CGS
 	R0 = 9*6.96e10				# Units of [cm]				CGS
-	M0 = 1.5*1.99e33				# Units of [g]				CGS
-	T0 = 5770
+	M0 = 1.5*1.99e33			# Units of [g]				CGS
+	T0 = 5770					# Units of [K]				CGS
 	rho0 = 4.0e-7				# Units of [g cm^-3]		CGS
 	P0 = getPressure(T0,rho0)	# Units of [Ba]				CGS
-	print "P0: ",P0
 
 	rho = rho0
 	m = M0
@@ -240,10 +235,9 @@ def integration():
 	dm = -1e10
 
 	# Assuming we only have radiative flux in the beginning, until we have convection.
+	# NB: I tried letting F_C = F_tot as well, but the results did not make much sense.
 	F = total_flux(L,r)
 	F_R = total_flux(L,r)
-#	F_R = 0
-#	F_C = total_flux(L,r)
 	F_C = 0
 
 	outfile = open('data.txt','w')
@@ -269,29 +263,26 @@ def integration():
 		dL = dLdm(T,rho) * dm
 		dT = dTdm(T,L,r,kappa) * dm
 
-		T_new = T + dT	# Superflous?
+#		T_new = T + dT	# Superflous?
 
+		# Assuming we only have radiative flux in the beginning, until we have convection.
+		# NB: I tried letting F_C = F_tot as well, but the results did not make much sense.
 		F = total_flux(L,r)
 		F_R = total_flux(L,r)
-#		F_R = 0
-#		F_C = total_flux(L,r)
 		F_C = 0
 
 		# Specific heat capacity
 		c_p = (5./2) * _K / (_MU * _M_U)	# Units of [erg K^-1 g^-1]
 
-		delta = 1.0		# 1 for ideal gas (maybe revisit later for a general expression)
+		delta = 1.0		# 1 for ideal gas
 
 		# Temperature gradient in adiabatic process
 		nabla_ad = P * delta / (T * rho * c_p)
-#		print "nabla_ad: ",nabla_ad
 
 		# Temperature gradient when only considering radiation
 		nabla_rad = nabla_radiation(T,P,L,m,kappa)
-#		print "nabla_rad: ", nabla_rad
 
 		# Checks the instability criterion and calculates dT based on convection if true.
-#		if False:
 		if nabla_rad > nabla_ad:
 
 			# Parameter between 0.5 and 2. Choose 1 for simplicity
@@ -304,35 +295,24 @@ def integration():
 			H_p = P / (g * rho)
 #			print "H_p: ",H_p
 
-			# Internal energy
+			# Internal energy of the parcel of gas
 			U = (64 * _SIGMA * T*T*T) / ( 3 * kappa * rho*rho * c_p) * np.sqrt(H_p / (g *
 				delta))
-#			print "U: ",U
 			
 			# Mixing length
 			l = alpha * H_p
-#			print "l: ",l
 			
 			# Parameters for solving 2nd and 3rd order polynomials
 			R = U / (l*l)
-#			print "R: ",R
 			K = 4 * R
 			nabla_diff = nabla_rad - nabla_ad
-#			print "nabla_rad - nabla_ad: ", (nabla_rad - nabla_ad)
-#			R2 = R*R
 			
-#			X = ((np.sqrt((27./R2)**2*nabla_diff**2+1836./R2*nabla_diff+6480)\
-#					+34+27./R2*nabla_diff)/2.)**(1./3)
-
-#			xi = R/3*(X-11./X-1)
-
 			coeff = [1, R, R*K, -R*nabla_diff]
 			xi_roots = np.roots(coeff)
 			for root in xi_roots:
 				if np.imag(root) == min(abs(np.imag(xi_roots))):
 					xi = np.real(root)
 					break
-#			print "xi: ",xi
 			
 			nabla = xi*xi+ K*xi+ nabla_ad
 
@@ -350,6 +330,7 @@ def integration():
 		kappa_new = opacity(T_new, rho_new)
 		m += dm
 
+		# Checks for negative physical parameters (unphysical situations)
 		if r_new < 0 or L_new < 0 or rho_new < 0 or P_new < 0 or T_new < 0:
 			print "Something went below zero. Stopped."
 			print "Step:", i
@@ -361,25 +342,6 @@ def integration():
 			print "Temperature:", T_new/T0
 			break
 
-#		if dr/r < 0.2 and dT/T < 0.1 and dL/L < 0.1 and dP/P < 0.1:
-#			dm_new = - min([abs(L/dLdm(T,rho)), abs(r/drdm(r,rho)),
-#			abs(T/dTdm(T,L,r,opacity(T,rho))), abs(P/dPdm(r,m))])
-#			if dm_new < 1.1*dm:
-#				dm = dm_new
-#			else:
-		"""
-		dm_max = - min([0.4*abs(L/(dL/dm)), 0.4*abs(r/(dr/dm)),
-				0.4*abs(T/(dT/dm)),
-				0.4*abs(P/(dP/dm))])
-		dm_min = - min([0.1*abs(L/(dL/dm)), 0.1*abs(r/(dr/dm)),
-			0.1*abs(T/(dT/dm)), 0.1*abs(P/(dP/dm))])
-
-		while abs(dm) > abs(dm_max) or abs(dm) < abs(dm_min):
-			if abs(dm) > abs(dm_max):
-				dm *= 0.95
-			if abs(dm) < abs(dm_min):
-				dm *= 1.05
-		"""
 		dm_max = - 0.2 * min([abs(L/dLdm(T,rho)), abs(r/drdm(r,rho)), abs(T/(dT/dm)),
 			abs(P/dPdm(r,m))])
 		dm_min = - 0.05 * min([abs(L/dLdm(T,rho)), abs(r/drdm(r,rho)), abs(T/(dT/dm)),
@@ -389,13 +351,6 @@ def integration():
 				dm *= 0.95
 			if abs(dm) < 0.7*abs(dm_min):
 				dm *= 1.05
-
-		"""
-		if abs(dm) > abs(dm_max):
-			dm *= 0.9
-		if abs(dm) < abs(dm_min):
-			dm *= 1.1	
-		"""
 
 		r = r_new
 		P = P_new
@@ -431,7 +386,7 @@ def integration():
 	print "epsilon: ",epsilon
 
 
-	return None #r, P, L, T, m, rho, rho0, P0, T0, L0, M0, R0, epsilon, end
+	return None
 integration()
 
 
