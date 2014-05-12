@@ -1,0 +1,19 @@
+\BOOKMARK [1][-]{section.1}{Introduction}{}% 1
+\BOOKMARK [1][-]{section.2}{Theory}{}% 2
+\BOOKMARK [2][-]{subsection.2.1}{General background}{section.2}% 3
+\BOOKMARK [2][-]{subsection.2.2}{Convection}{section.2}% 4
+\BOOKMARK [1][-]{section.3}{Algorithm}{}% 5
+\BOOKMARK [2][-]{subsection.3.1}{Simplifications}{section.3}% 6
+\BOOKMARK [2][-]{subsection.3.2}{Units}{section.3}% 7
+\BOOKMARK [2][-]{subsection.3.3}{Structure}{section.3}% 8
+\BOOKMARK [2][-]{subsection.3.4}{The Euler integration scheme}{section.3}% 9
+\BOOKMARK [2][-]{subsection.3.5}{Adaptive mass step}{section.3}% 10
+\BOOKMARK [2][-]{subsection.3.6}{Initial conditions}{section.3}% 11
+\BOOKMARK [1][-]{section.4}{Results}{}% 12
+\BOOKMARK [2][-]{subsection.4.1}{Model with original initial conditions}{section.4}% 13
+\BOOKMARK [2][-]{subsection.4.2}{The best model}{section.4}% 14
+\BOOKMARK [2][-]{subsection.4.3}{Changing the initial radius}{section.4}% 15
+\BOOKMARK [3][-]{subsubsection.4.3.1}{Energy transport}{subsection.4.3}% 16
+\BOOKMARK [3][-]{subsubsection.4.3.2}{Energy generation}{subsection.4.3}% 17
+\BOOKMARK [1][-]{section.5}{Conclusion}{}% 18
+\BOOKMARK [1][-]{section.6}{The code}{}% 19
